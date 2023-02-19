@@ -38,6 +38,21 @@ class SelectJoin extends SelectBase
      */
     public function on($localKey, $operator, $referenceKey, $type = 'and')
     {
+        if (empty($this->ons)) 
+        {
+            $type = 'on';
+        }
+        
+        if (is_object($localKey) && ($localKey instanceof \Closure)) 
+        {
+            // create new query object
+            $subquery = new SelectJoin;
+
+            // run the closure callback on the sub query
+            call_user_func_array($localKey, array( &$subquery ));
+ 
+            $this->ons[] = array($type, $subquery); return $this;
+        }        
         $this->ons[] = array($type, $localKey, $operator, $referenceKey); return $this;
     }
 
@@ -50,7 +65,7 @@ class SelectJoin extends SelectBase
      * 
      * @return static
      */
-    public function orOn($localKey, $operator, $referenceKey)
+    public function orOn($localKey, $operator=null, $referenceKey=null)
     {
         $this->on($localKey, $operator, $referenceKey, 'or'); return $this;
     }
@@ -64,7 +79,7 @@ class SelectJoin extends SelectBase
      * 
      * @return static
      */
-    public function andOn($localKey, $operator, $referenceKey)
+    public function andOn($localKey, $operator=null, $referenceKey=null)
     {
         $this->on($localKey, $operator, $referenceKey, 'and'); return $this;
     }

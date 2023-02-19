@@ -554,6 +554,37 @@ class Mysql implements TranslatorInterface
         return $build;
     }
 
+
+
+    protected function translateOn($ons)
+    {
+        $build = '';
+        foreach ($ons as $on) 
+        {
+            // to make nested ons possible you can pass an closure
+            // wich will create a new query where you can add your nested ons
+            if (!isset($on[2]) && isset( $on[1] ) && $on[1] instanceof BaseQuery ) 
+            {
+                $subAttributes = $on[1]->attributes();
+
+                // The parameters get added by the call of compile where
+                $build .= ' ' . $on[0] . ' ( ' . substr($this->translateOn($subAttributes['ons']), 3) . ' )';
+
+                continue;
+            }
+
+            $on[1] = $this->escape($on[1]);
+            $on[3] = $this->escape($on[3]);
+
+            // implode the beauty
+            $build .= ' ' . implode(' ', $on);
+        }
+
+        return $build;
+    }
+
+
+
     /**
      * Build the sql join statements
      *
@@ -588,12 +619,12 @@ class Mysql implements TranslatorInterface
                         $this->addParameter($parameter);
                     }
 
-                    return '(' . $subQuery . ') as ' . $this->escape(key($table));
+                    $table = new Expression('(' . $subQuery . ') as ' . $this->escape(key($table)));
                 }
             }
 
             // start the join
-            $build .= ' ' . $type . ' join ' . $this->escape($table) . ' on ';
+            $build .= ' ' . $type . ' join ' . $this->escape($table);
 
             // to make nested join conditions possible you can pass an closure
             // wich will create a new query where you can add your nested ons and wheres
@@ -602,18 +633,8 @@ class Mysql implements TranslatorInterface
                 $subAttributes = $join[2]->attributes();
 
                 $joinConditions = '';
-
-                // remove the first type from the ons
-                reset($subAttributes['ons']);
-                $subAttributes['ons'][key($subAttributes['ons'])][0] = '';
-
-                foreach($subAttributes['ons'] as $on)
-                {
-                    list($type, $localKey, $operator, $referenceKey) = $on;
-                    $joinConditions .= ' ' . $type . ' ' . $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
-                }
-
-                $build .= trim($joinConditions);
+                $joinConditions = $this->translateOn($subAttributes['ons']);
+                $build .= ' '.trim($joinConditions);
 
                 // compile the where if set
                 if (!empty($subAttributes['wheres']))
@@ -625,7 +646,7 @@ class Mysql implements TranslatorInterface
             {
                 // othewise default join
                 list($type, $table, $localKey, $operator, $referenceKey) = $join;
-                $build .= $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
+                $build .= ' on ' . $this->escape($localKey) . ' ' . $operator . ' ' . $this->escape($referenceKey);
             }
         }
 
